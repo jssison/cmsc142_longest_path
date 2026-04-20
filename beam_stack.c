@@ -33,130 +33,238 @@ void create_edge(int **matrix, int v1, int v2){
     matrix[v2][v1] = 1;
 }
 
-void push(Path p){
-    if(top < MAX_STACK - 1){
-        top++;
-        stack[top] = p;
-    }
-}
+// void push(Path p){
+//     if(top < MAX_STACK - 1){
+//         top++;
+//         stack[top] = p;
+//     }
+// }
 
-Path pop(){
-    if (top == -1) {
-        printf("Stack underflow\n");
-        exit(1);
-    }
-    Path p = stack[top];
-    top--;
-    return p;
-}
+// Path pop(){
+//     if (top == -1) {
+//         printf("Stack underflow\n");
+//         exit(1);
+//     }
+//     Path p = stack[top];
+//     top--;
+//     return p;
+// }
 
-int isEmpty(){
-    return (top == -1);
-}
+// int isEmpty(){
+//     return (top == -1);
+// }
 
-int contains(Path p, int node){
-    for(int i = 0; i < p.length; i++){
-        if (p.nodes[i] == node){
-            return 1;
-        }
+// int contains(Path p, int node){
+//     for(int i = 0; i < p.length; i++){
+//         if (p.nodes[i] == node){
+//             return 1;
+//         }
                
-    }
-    return 0;
-}
+//     }
+//     return 0;
+// }
 
-Path extend(Path p, int node){
-    Path newP = p;
-    newP.nodes[newP.length] = node;
-    newP.length++;
-    return newP;
-}
+// Path extend(Path p, int node){
+//     Path newP = p;
+//     newP.nodes[newP.length] = node;
+//     newP.length++;
+//     return newP;
+// }
 
-Path beam_stack_search(int **matrix, int n, int start) {
+Path beam_search(int **matrix, int n, int start) {
+    typedef struct {
+        int nodes[MAX_NODES]; //sequence of nodes
+        int visited[MAX_NODES]; //cycle checks
+        int length; //current path length
+    } BeamPath;
 
-    Path currentBeam[BEAM_WIDTH];
+    BeamPath beam[BEAM_WIDTH];
     int beamSize = 1;
 
-    // initialize starting path
-    currentBeam[0].nodes[0] = start;
-    currentBeam[0].length = 1;
+    //initialize visited
+    for (int i = 0; i < n; i++) beam[0].visited[i] = 0;
+    beam[0].nodes[0] = start;
+    beam[0].visited[start] = 1;
+    beam[0].length = 1;
 
-    Path bestPath = currentBeam[0];
+    Path best;
+    best.length = 1;
+    best.nodes[0] = start;
 
-    while (beamSize > 0 || !isEmpty()) {
+    //main loop
+    //expand current beam and keep top candidates
+    while (beamSize > 0) {
+        //keep track of candidates
+        BeamPath candidates[MAX_STACK];
+        int candSize = 0;
 
-        // backtrack if needed
-        if (beamSize == 0) {
-            currentBeam[0] = pop();
-            beamSize = 1;
-            continue;
-        }
-
-        Path nextBeam[MAX_STACK];
-        int nextSize = 0;
-
-        // expand beam
+        //expand current beam
+        //visit all unvisited neighbors
         for (int i = 0; i < beamSize; i++) {
-            Path curr = currentBeam[i];
+            BeamPath curr = beam[i];
             int last = curr.nodes[curr.length - 1];
 
             for (int j = 0; j < n; j++) {
-                if (matrix[last][j] == 1 && !contains(curr, j)) {
-                    Path newPath = extend(curr, j);
+                if (matrix[last][j] && !curr.visited[j]) {
+                    BeamPath next = curr;
 
-                    if (nextSize < MAX_STACK) {
-                        nextBeam[nextSize++] = newPath;
-                    }
+                    next.nodes[next.length++] = j;
+                    next.visited[j] = 1;
+
+                    candidates[candSize++] = next;
                 }
             }
         }
 
-        // no expansion so we need to backtrack
-        if (nextSize == 0) {
-            if (!isEmpty()) {
-                currentBeam[0] = pop();
-                beamSize = 1;
-            } else {
-                break;
+        //break if no candidates are found (cannot be expanded)
+        if (candSize == 0) break;
+
+        //heuristic: fewer future moves
+        //avoids dead ends
+        //low score = fewer future moves/expansions = more contsrained
+        int score[MAX_STACK];
+        for (int i = 0; i < candSize; i++) {
+            int last = candidates[i].nodes[candidates[i].length - 1];
+            int future = 0;
+
+            for (int j = 0; j < n; j++) {
+                if (matrix[last][j] && !candidates[i].visited[j]) {
+                    future++;
+                }
             }
-            continue;
+
+            score[i] = future;
         }
-        for (int i = 0; i < nextSize - 1; i++) {
-            for (int j = i + 1; j < nextSize; j++) {
-                if (nextBeam[j].length > nextBeam[i].length) {
-                    Path temp = nextBeam[i];
-                    nextBeam[i] = nextBeam[j];
-                    nextBeam[j] = temp;
+
+        //select top BEAM_WIDTH candidates
+        //removed full sorting (partial selection instead)
+        BeamPath newBeam[BEAM_WIDTH];
+        int newSize = 0;
+
+        for (int k = 0; k < BEAM_WIDTH; k++) {
+            int bestCands = -1;
+
+            for (int i = 0; i < candSize; i++) {
+                if (score[i] == -1) continue;
+
+                if (bestCands == -1 || score[i] < score[bestCands]) {
+                    bestCands = i;
+                }
+            }
+
+            //no more valid candidates
+            if (bestCands == -1) break;
+
+            newBeam[newSize++] = candidates[bestCands];
+            score[bestCands] = -1; //mark used
+        }
+
+        //update best path found
+        for (int i = 0; i < newSize; i++) {
+            if (newBeam[i].length > best.length) {
+                best.length = newBeam[i].length;
+                for (int j = 0; j < best.length; j++) {
+                    best.nodes[j] = newBeam[i].nodes[j];
                 }
             }
         }
 
-        // compute min(nextSize, BEAM_WIDTH) so it won't overlflow
-        int newBeamSize;
-        if (nextSize < BEAM_WIDTH) {
-            newBeamSize = nextSize;
-        } else {
-            newBeamSize = BEAM_WIDTH;
+        //move to next beam
+        for (int i = 0; i < newSize; i++) {
+            beam[i] = newBeam[i];
         }
-
-        // push discarded paths to stack
-        for (int i = newBeamSize; i < nextSize; i++) {
-            push(nextBeam[i]);
-        }
-
-        // update beam
-        for (int i = 0; i < newBeamSize; i++) {
-            currentBeam[i] = nextBeam[i];
-
-            if (currentBeam[i].length > bestPath.length) {
-                bestPath = currentBeam[i];
-            }
-        }
-
-        beamSize = newBeamSize;
+        beamSize = newSize;
     }
 
-    return bestPath;
+    return best;
 }
+
+// Path beam_stack_search(int **matrix, int n, int start) {
+
+//     Path currentBeam[BEAM_WIDTH];
+//     int beamSize = 1;
+
+//     // initialize starting path
+//     currentBeam[0].nodes[0] = start;
+//     currentBeam[0].length = 1;
+
+//     Path bestPath = currentBeam[0];
+
+//     while (beamSize > 0 || !isEmpty()) {
+
+//         // backtrack if needed
+//         if (beamSize == 0) {
+//             currentBeam[0] = pop();
+//             beamSize = 1;
+//             continue;
+//         }
+
+//         Path nextBeam[MAX_STACK];
+//         int nextSize = 0;
+
+//         // expand beam
+//         for (int i = 0; i < beamSize; i++) {
+//             Path curr = currentBeam[i];
+//             int last = curr.nodes[curr.length - 1];
+
+//             for (int j = 0; j < n; j++) {
+//                 if (matrix[last][j] == 1 && !contains(curr, j)) {
+//                     Path newPath = extend(curr, j);
+
+//                     if (nextSize < MAX_STACK) {
+//                         nextBeam[nextSize++] = newPath;
+//                     }
+//                 }
+//             }
+//         }
+
+//         // no expansion so we need to backtrack
+//         if (nextSize == 0) {
+//             if (!isEmpty()) {
+//                 currentBeam[0] = pop();
+//                 beamSize = 1;
+//             } else {
+//                 break;
+//             }
+//             continue;
+//         }
+//         for (int i = 0; i < nextSize - 1; i++) {
+//             for (int j = i + 1; j < nextSize; j++) {
+//                 if (nextBeam[j].length > nextBeam[i].length) {
+//                     Path temp = nextBeam[i];
+//                     nextBeam[i] = nextBeam[j];
+//                     nextBeam[j] = temp;
+//                 }
+//             }
+//         }
+
+//         // compute min(nextSize, BEAM_WIDTH) so it won't overlflow
+//         int newBeamSize;
+//         if (nextSize < BEAM_WIDTH) {
+//             newBeamSize = nextSize;
+//         } else {
+//             newBeamSize = BEAM_WIDTH;
+//         }
+
+//         // push discarded paths to stack
+//         for (int i = newBeamSize; i < nextSize; i++) {
+//             push(nextBeam[i]);
+//         }
+
+//         // update beam
+//         for (int i = 0; i < newBeamSize; i++) {
+//             currentBeam[i] = nextBeam[i];
+
+//             if (currentBeam[i].length > bestPath.length) {
+//                 bestPath = currentBeam[i];
+//             }
+//         }
+
+//         beamSize = newBeamSize;
+//     }
+
+//     return bestPath;
+// }
 
 int main() {
     // open file
@@ -187,8 +295,9 @@ int main() {
     Path best;
     best.length = 0;
     for (int i = 0; i < n; i++) {
-        top = -1;  // reset stack for each start node
-        Path p = beam_stack_search(matrix, n, i);
+        //top = -1;  // reset stack for each start node
+        // Path p = beam_stack_search(matrix, n, i);
+        Path p = beam_search(matrix, n, i);
         if (p.length > best.length) {
             best = p;
         }

@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 //modify input file here
 #define INPUT_FILE "matrix.in"
@@ -89,6 +90,9 @@ void main() {
         longest_path[i] = -1;
     }
 
+    clock_t start, end;
+    start = clock();
+
     for (int i=0; i < v; i++) {
         for (int j=0; j < v; j++) {
             //mark every vertex as unvisited
@@ -102,12 +106,22 @@ void main() {
         dfs(matrix, i, v, visited, 0, &max_path, curr_path, longest_path);
     }
 
-    printf("Longest path length: %d\n", max_path);
+    end = clock();
+    double time_taken = (double)(end - start) / CLOCKS_PER_SEC;
+
+
     //print longest path
     for (int i=0; i <= max_path; i++) {
-        printf("%d ", longest_path[i]);
+        if (i < max_path) {
+            printf("%d -> ", longest_path[i]);
+        }
+        else{
+            printf("%d", longest_path[i]);
+        }
     }
     printf("\n");
+    printf("Length: %d edges\n", max_path);
+    printf("Time taken: %.6f seconds\n", time_taken);
 
     //free matrix and visited
     for (int i=0; i < v; i++) {
