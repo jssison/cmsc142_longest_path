@@ -6,7 +6,7 @@
 3. For every DFS, check if the current path's length exceeds the longest path so far
 4. If so, replace the longest path with the current path
 
-## Non-Brute Force Approach
+## Heuristic Approach (Beam Stack)
 1. Uses a heuristic approach to reduce the search space
 2. Keeps only a limited number of candidate paths (BEAM_WIDTH)
 3. Expands the most promising paths first
